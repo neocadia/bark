@@ -1,2 +1,8 @@
 __pycache__/
 suno_bark.egg-info/
+
+# Data
+*.npz
+
+# Build
+/build
