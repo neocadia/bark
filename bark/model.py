@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-
+# Define a LayerNorm module, which is a normalization layer that can include a bias term
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
 
@@ -19,7 +19,7 @@ class LayerNorm(nn.Module):
 
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
-
+# Define a CausalSelfAttention module for calculating self-attention over an input sequence
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
