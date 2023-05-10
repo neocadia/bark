@@ -49,35 +49,39 @@ app.add_middleware(
 )
 # Define a generator function that yields audio arrays and silences
 def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
+    print('Gen 3')
+    silence_copied = silence.copy()
     for sentence in sentences: # Iterate through each sentence
+        start_time = time.time()
         semantic_tokens = generate_text_semantic(
-            sentence,
-            history_prompt=history_prompt,
-            temp=temp,
-            min_eos_p=min_eos_p,
-        )
+             sentence,
+             history_prompt=history_prompt,
+             temp=temp,
+             min_eos_p=min_eos_p,
+         )
         # Generate the audio array for the current sentence
-        audio_array = semantic_to_waveform(semantic_tokens, history_prompt,) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
+        audio_array = semantic_to_waveform(semantic_tokens, history_prompt) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
         # audio_array = generate_audio(sentence, history_prompt) # less computationally expensive, does not use NLTK
-        concatenated_array = np.concatenate([audio_array, silence.copy()]) # Concatenate the audio array with the silence buffer
+        concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
         json_string = json.dumps(concatenated_array.tolist()) # Convert the concatenated audio array to a JSON string
         yield json_string # Yield the JSON string to the calling function (to be used for streaming the audio)
+        end_time = time.time()
+        print(f'Sentence {sentence} took {end_time - start_time} seconds to generate')
+        
 @app.post("/v1/tts/generate_audio")
 async def create_audio_generation(request: AudioGenerationRequest,response: Response):
     """Creates an audio generation for a text prompt"""
     fullPrompt = request.text.replace("\n", " ").strip() # Replace newline characters with spaces and strip whitespace from the text
-
     sentences = nltk.sent_tokenize(fullPrompt) # Split the text into sentences
-
     # FIXME: This should be passed in from the request.
     GEN_TEMP = 0.6 # Set the generation temperature value
     silence = np.zeros(int(request.silence * SAMPLE_RATE))  # quarter second of silence
    # Set CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers[
-        "Access-Control-Allow-Headers"
-    ] = "Content-Type, Authorization"
+    # response.headers["Access-Control-Allow-Origin"] = "*"
+    # response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    # response.headers[
+    #     "Access-Control-Allow-Headers"
+    # ] = "Content-Type, Authorization"
     return StreamingResponse(generate_audio_arrays(sentences, request.speaker, GEN_TEMP, request.min_eos_p, silence), media_type='application/json')
 
 if __name__ == "__main__": #checks if the script is being run as the main program (as opposed to being imported as a module into another script). If it is being run as the main program, the code that follows will be executed.
@@ -85,7 +89,7 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
         description="Bark Restful API server."
     )
     # Define command-line arguments for the server
-    parser.add_argument("--host", type=str, default="localhost", help="host name")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="hostname")
     parser.add_argument("--port", type=int, default=8000, help="port number")
     parser.add_argument("--allow-credentials", action="store_true", help="allow credentials")
     parser.add_argument("--allowed-origins", type=json.loads, default=["*"], help="allowed origins")
@@ -94,13 +98,13 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
 
     args = parser.parse_args()
     # Add CORS middleware to the FastAPI app with the specified command-line arguments
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=args.allowed_origins,
-        allow_credentials=args.allow_credentials,
-        allow_methods=args.allowed_methods,
-        allow_headers=args.allowed_headers,
-    )
+    #app.add_middleware(
+    #    CORSMiddleware,
+    #    allow_origins=args.allowed_origins,
+    #    allow_credentials=args.allow_credentials,
+    #    allow_methods=args.allowed_methods,
+    #    allow_headers=args.allowed_headers,
+    # )
 
     print("==== Bootstrapping ====")
     print('Preloading models...')
@@ -113,4 +117,4 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
     print(f"==== args ====\n{args}") # Log the parsed command-line arguments
     
     # Run the Uvicorn ASGI server with the specified host and port
-    uvicorn.run("serve:app", host=args.host, port=args.port, reload=True)
+    uvicorn.run("serve:app", host=args.host, port=args.port, reload=False)
