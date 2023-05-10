@@ -48,16 +48,17 @@ headers = {"User-Agent": "Bark API Server"}
 
 def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
     for sentence in sentences:
-        print(sentence, history_prompt, temp, min_eos_p)
-        semantic_tokens = generate_text_semantic(
-            sentence,
-            history_prompt,
-            temp,
-            min_eos_p,  # this controls how likely the generation is to end
-        )
+        # print(sentence, history_prompt, temp, min_eos_p)
+        # semantic_tokens = generate_text_semantic(
+        #     sentence,
+        #     history_prompt,
+        #     temp,
+        #     min_eos_p,  # this controls how likely the generation is to end
+        # )
 
-        audio_array = semantic_to_waveform(semantic_tokens, history_prompt,)
-        yield [audio_array.tolist(), silence.copy().tolist()]
+        # audio_array = semantic_to_waveform(semantic_tokens, history_prompt,)
+        audio_array = generate_audio(sentence, history_prompt)
+        yield [audio_array, silence.copy()]
 
 @app.post("/v1/tts/generate_audio")
 async def create_audio_generation(request: AudioGenerationRequest):
@@ -70,7 +71,7 @@ async def create_audio_generation(request: AudioGenerationRequest):
     SPEAKER = "v2/en_speaker_6"
     silence = np.zeros(int(0.25 * SAMPLE_RATE))  # quarter second of silence
 
-    return StreamingResponse(generate_audio_arrays(sentences, SPEAKER, GEN_TEMP, 0.05, silence), media_type='text/event-stream')
+    return StreamingResponse(generate_audio_arrays(sentences, SPEAKER, GEN_TEMP, 0.05, silence), media_type='application/json')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
