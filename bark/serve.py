@@ -23,7 +23,9 @@ from bark import generate_audio, SAMPLE_RATE
 
 # 
 # HTTP API Serve
-# 
+#
+
+debugMode = None # This is defined with args at runtime.
 
 class AudioGenerationRequest(BaseModel):  # Define a class for audio generation requests using Pydantic BaseModel
     text: str  # Define the text field as a string
@@ -57,6 +59,7 @@ def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
              history_prompt=history_prompt,
              temp=temp,
              min_eos_p=min_eos_p,
+             silent=not debugMode
          )
         # Generate the audio array for the current sentence
         audio_array = semantic_to_waveform(semantic_tokens, history_prompt) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
@@ -68,7 +71,8 @@ def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
 
         yield transformed_data
         end_time = time.time()
-        print(f'Sentence {sentence} took {end_time - start_time} seconds to generate')
+        if (debugMode == True):
+            print(f'Sentence {sentence} - - - \nGenerated in {end_time - start_time} seconds.')
         
 @app.post("/v1/tts/generate_audio")
 async def create_audio_generation(request: AudioGenerationRequest,response: Response):
@@ -94,7 +98,8 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
     # Define command-line arguments for the server
     parser.add_argument("--host", type=str, default="0.0.0.0", help="hostname")
     parser.add_argument("--port", type=int, default=8000, help="port number")
-    parser.add_argument("--allow-credentials", action="store_true", help="allow credentials")
+    parser.add_argument("--allow-credentials", default=False, action=argparse.BooleanOptionalAction, help="allow credentials")
+    parser.add_argument("--debug", default=True, action=argparse.BooleanOptionalAction, help="enable debug mode")
     parser.add_argument("--allowed-origins", type=json.loads, default=["*"], help="allowed origins")
     parser.add_argument("--allowed-methods", type=json.loads, default=["*"], help="allowed methods")
     parser.add_argument("--allowed-headers", type=json.loads, default=["*"], help="allowed headers")
@@ -109,6 +114,8 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
     #    allow_headers=args.allowed_headers,
     # )
 
+    debugMode = args.debug
+
     print("==== Bootstrapping ====")
     print('Preloading models...')
     preload_models()
@@ -116,6 +123,7 @@ if __name__ == "__main__": #checks if the script is being run as the main progra
     print('Loading nltk...')
     nltk.download('punkt') # Download the Punkt tokenizer for splitting the text into sentences
     print('Loaded nltk.')
+    print("==== Bootstrapping Complete ====")
 
     print(f"==== args ====\n{args}") # Log the parsed command-line arguments
     
