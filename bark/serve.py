@@ -35,7 +35,6 @@ class AudioGenerationRequest(BaseModel):  # Define a class for audio generation 
     speaker: Union[str, None] = "v2/en_speaker_6" # Define the speaker.
     min_eos_p: Union[float, None] = 0.05 # This controls how likely the generation is to end. Default ???
     silence: Union[float, None] = 0.25 # How much silence to include at the end of each sentence. Default 1/4 second.
-    requestedResponseType: Union[str, None] = "json"
 
 logger = logging.getLogger(__name__)  # Initialize a logger object with the current module name
 # app_settings = AppSettings()
@@ -49,8 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # Define a generator function that yields audio arrays and silences
-def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence, requestedResponseType):
-    print('Gen 3')
+def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
     silence_copied = silence.copy()
     for sentence in sentences: # Iterate through each sentence
         start_time = time.time()
@@ -64,13 +62,9 @@ def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence, r
         audio_array = semantic_to_waveform(semantic_tokens, history_prompt) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
         # audio_array = generate_audio(sentence, history_prompt) # less computationally expensive, does not use NLTK
         concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
-        # json_string = 
+        # json_string = son.dumps(concatenated_array.tolist()) # Convert the concatenated audio array to a JSON string
         # yield json_string # Yield the JSON string to the calling function (to be used for streaming the audio)
-        transformed_data = []
-        if (requestedResponseType == "json"):
-            transformed_data = json.dumps(concatenated_array.tolist()) # Convert the concatenated audio array to a JSON string
-        if (requestedResponseType == "binary"):
-            transformed_data = concatenated_array.tobytes() # Convert the concatenated audio array to binary data
+        transformed_data = concatenated_array.tobytes() # Convert the concatenated audio array to binary data
 
         yield transformed_data
         end_time = time.time()
@@ -95,7 +89,7 @@ async def create_audio_generation(request: AudioGenerationRequest,response: Resp
         media_type = "application/json"
     if (request.requestedResponseType == "binary"):
         media_type = "application/octet-stream"
-    return StreamingResponse(generate_audio_arrays(sentences, request.speaker, GEN_TEMP, request.min_eos_p, silence, request.requestedResponseType), media_type=media_type)
+    return StreamingResponse(generate_audio_arrays(sentences, request.speaker, GEN_TEMP, request.min_eos_p, silence), media_type=media_type)
 
 if __name__ == "__main__": #checks if the script is being run as the main program (as opposed to being imported as a module into another script). If it is being run as the main program, the code that follows will be executed.
     parser = argparse.ArgumentParser( #creates an instance of the ArgumentParser class from the argparse module. This object is used to parse command-line arguments passed to the script
