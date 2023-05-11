@@ -5,6 +5,8 @@ import json
 import logging
 from typing import Generator, Optional, Union, List, Dict, Any
 import time
+import shortuuid
+from collections import Counter
 
 from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse
@@ -22,7 +24,7 @@ from bark.api import semantic_to_waveform
 from bark import generate_audio, SAMPLE_RATE
 
 # 
-# HTTP API Serve
+# HTTP API Serve (requires Python 3.10+)
 #
 
 logger = logging.getLogger(__name__)  # Initialize a logger object with the current module name
@@ -93,9 +95,11 @@ class AudioGenerationRequest(BaseModel):  # Define a class for audio generation 
 
 # Define a generator function that yields audio arrays and silences
 def generate_audio_arrays(sentences, request):
+    if (debugMode):
+        print('##### Job Started #####')
     silence = np.zeros(int(request.silence * SAMPLE_RATE))  # quarter second of silence
     silence_copied = silence.copy()
-    print(request)
+
     total_start_time = time.time()
     for index, sentence in enumerate(sentences): # Iterate through each sentence
         start_time = time.time()
@@ -125,9 +129,20 @@ def generate_audio_arrays(sentences, request):
         yield transformed_data
         end_time = time.time()
         if (debugMode):
-            print(f'{index}) Sentence: {sentence}\n{index}) Generated in {end_time - start_time} seconds.')
-    total_end_time = time.time()
-    print(f'Generated {len(sentences)} sentences in {total_end_time - total_start_time} seconds.')
+            print(f'{index}) Sentence: {sentence}\n{index}) Generated in {round(end_time - start_time, 2)} seconds.')
+    if (debugMode):
+        total_end_time = time.time()
+        total_elapsed_time = total_end_time - total_start_time
+        word_count = Counter(request.text.lower().split()).total()
+        sentences_per_second = round((len(sentences) / total_elapsed_time), 2)
+        words_per_second = round((word_count / total_elapsed_time), 2)
+        characters_per_second = round((len(request.text) / total_elapsed_time), 2)
+        print('##### Job Complete #####')
+        print(f'Generated {len(sentences)} sentences ({sentences_per_second}/s)')
+        print(f'Generated {word_count} words ({words_per_second}/s)')
+        print(f'Generated {len(request.text)} characters ({characters_per_second}/s)')
+        print(f'Job completed in {total_elapsed_time} seconds.')
+        print('##### End Job Info #####')
         
 @app.post("/v1/tts/generate_audio")
 async def create_audio_generation(request: AudioGenerationRequest, response: Response):
