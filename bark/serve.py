@@ -84,12 +84,8 @@ async def create_audio_generation(request: AudioGenerationRequest,response: Resp
     # response.headers[
     #     "Access-Control-Allow-Headers"
     # ] = "Content-Type, Authorization"
-    media_type = ""
-    if (request.requestedResponseType == "json"):
-        media_type = "application/json"
-    if (request.requestedResponseType == "binary"):
-        media_type = "application/octet-stream"
-    return StreamingResponse(generate_audio_arrays(sentences, request.speaker, GEN_TEMP, request.min_eos_p, silence), media_type=media_type)
+
+    return StreamingResponse(generate_audio_arrays(sentences, request.speaker, GEN_TEMP, request.min_eos_p, silence), media_type="application/octet-stream")
 
 if __name__ == "__main__": #checks if the script is being run as the main program (as opposed to being imported as a module into another script). If it is being run as the main program, the code that follows will be executed.
     parser = argparse.ArgumentParser( #creates an instance of the ArgumentParser class from the argparse module. This object is used to parse command-line arguments passed to the script
