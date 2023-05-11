@@ -31,6 +31,12 @@ app = FastAPI() # Create a FastAPI app instance
 headers = {"User-Agent": "Bark API Server"} # Define custom headers for HTTP requests
 
 debugMode = True
+app.add_middleware(
+       CORSMiddleware,
+       allow_origins=['*'],
+       allow_methods=['*'],
+       allow_headers=['*'],
+    )
 
 if __name__ == "__main__": #checks if the script is being run as the main program (as opposed to being imported as a module into another script). If it is being run as the main program, the code that follows will be executed.
     parser = argparse.ArgumentParser( #creates an instance of the ArgumentParser class from the argparse module. This object is used to parse command-line arguments passed to the script
@@ -76,27 +82,40 @@ class AudioGenerationRequest(BaseModel):  # Define a class for audio generation 
     history_prompt: Union[Union[Dict, str], None] = None  # Define the history_prompt field as a string, dict, or None
     text_temp: Union[float, None] = 0.7  # Define the text_temp field as a float or None, with a default value of 0.7
     waveform_temp: Union[float, None] = 0.7  # Define the waveform_temp field as a float or None, with a default value of 0.7
-    gen_temp: Union[float, None] = 0.6  # Is this the same as any of the above? Anyway, this is one is being used by us while the two above are not.
-    silent: Union[bool, None] = False  # Define the silent field as a bool or None, with a default value of False
+    gen_temp: Union[float, None] = 0.7 # Semantic temp.
     output_full: Union[bool, None] = False  # Define the output_full field as a bool or None, with a default value of False,
-    speaker: Union[str, None] = "v2/en_speaker_6" # Define the speaker.
-    min_eos_p: Union[float, None] = 0.05 # This controls how likely the generation is to end. Default ???
+    min_eos_p: Union[float, None] = 0.05 # This controls how likely the generation is to end.
     silence: Union[float, None] = 0.25 # How much silence to include at the end of each sentence. Default 1/4 second.
+    max_gen_duration_s: Union[float, None] = None # FIXME: Make this dynamic based on the estimated length of time for a sentence given from the tokenizer.
+    top_k: None = None
+    top_p: None = None
+    allow_early_stop: bool = True
 
 # Define a generator function that yields audio arrays and silences
-def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
+def generate_audio_arrays(sentences, request):
+    silence = np.zeros(int(request.silence * SAMPLE_RATE))  # quarter second of silence
     silence_copied = silence.copy()
+    print(request)
+    total_start_time = time.time()
     for index, sentence in enumerate(sentences): # Iterate through each sentence
         start_time = time.time()
         semantic_tokens = generate_text_semantic(
              sentence,
-             history_prompt=history_prompt,
-             temp=temp,
-             min_eos_p=min_eos_p,
+             history_prompt=request.history_prompt,
+             temp=request.gen_temp,
+             min_eos_p=request.min_eos_p,
+             max_gen_duration_s=request.max_gen_duration_s,
+             allow_early_stop=request.allow_early_stop,
+             top_k=request.top_k,
+             top_p=request.top_p,
              silent=not debugMode
          )
         # Generate the audio array for the current sentence
-        audio_array = semantic_to_waveform(semantic_tokens, history_prompt) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
+        audio_array = semantic_to_waveform(
+            semantic_tokens,
+            request.history_prompt,
+            request.waveform_temp
+        ) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
         # audio_array = generate_audio(sentence, history_prompt) # less computationally expensive, does not use NLTK
         concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
         # json_string = son.dumps(concatenated_array.tolist()) # Convert the concatenated audio array to a JSON string
@@ -107,14 +126,14 @@ def generate_audio_arrays(sentences, history_prompt, temp, min_eos_p, silence):
         end_time = time.time()
         if (debugMode):
             print(f'{index}) Sentence: {sentence}\n{index}) Generated in {end_time - start_time} seconds.')
+    total_end_time = time.time()
+    print(f'Generated {len(sentences)} sentences in {total_end_time - total_start_time} seconds.')
         
 @app.post("/v1/tts/generate_audio")
-async def create_audio_generation(request: AudioGenerationRequest,response: Response):
+async def create_audio_generation(request: AudioGenerationRequest, response: Response):
     """Creates an audio generation for a text prompt"""
     fullPrompt = request.text.replace("\n", " ").strip() # Replace newline characters with spaces and strip whitespace from the text
     sentences = nltk.sent_tokenize(fullPrompt) # Split the text into sentences
-    # FIXME: This should be passed in from the request but I don't yet know which parameter name correlates to which?
-    silence = np.zeros(int(request.silence * SAMPLE_RATE))  # quarter second of silence
     # Set CORS headers
     # response.headers["Access-Control-Allow-Origin"] = "*"
     # response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
@@ -122,4 +141,4 @@ async def create_audio_generation(request: AudioGenerationRequest,response: Resp
     #     "Access-Control-Allow-Headers"
     # ] = "Content-Type, Authorization"
 
-    return StreamingResponse(generate_audio_arrays(sentences, request.speaker, request.gen_temp, request.min_eos_p, silence), media_type="application/octet-stream")
+    return StreamingResponse(generate_audio_arrays(sentences, request), media_type="application/octet-stream")
