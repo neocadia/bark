@@ -87,7 +87,7 @@ class AudioGenerationRequest(BaseModel):  # Define a class for audio generation 
     gen_temp: Union[float, None] = 0.7 # Semantic temp.
     output_full: Union[bool, None] = False  # Define the output_full field as a bool or None, with a default value of False,
     min_eos_p: Union[float, None] = 0.05 # This controls how likely the generation is to end.
-    silence: Union[float, None] = 0.25 # How much silence to include at the end of each sentence. Default 1/4 second.
+    silence: Union[float, None] = 0.0 # How much silence to include at the end of each sentence. Default 1/4 second.
     max_gen_duration_s: Union[float, None] = None # FIXME: Make this dynamic based on the estimated length of time for a sentence given from the tokenizer.
     top_k: None = None
     top_p: None = None
@@ -97,6 +97,7 @@ class AudioGenerationRequest(BaseModel):  # Define a class for audio generation 
 def generate_audio_arrays(sentences, request):
     if (debugMode):
         print('##### Job Started #####')
+
     silence = np.zeros(int(request.silence * SAMPLE_RATE))  # quarter second of silence
     silence_copied = silence.copy()
 
@@ -121,9 +122,10 @@ def generate_audio_arrays(sentences, request):
             request.waveform_temp
         ) # generate the audio by converting the text into semantic tokens first, then generating a waveform, resulting in more natural-sounding audio, as the semantic tokens can provide additional context for the generated audio
         # audio_array = generate_audio(sentence, history_prompt) # less computationally expensive, does not use NLTK
-        concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
         # json_string = son.dumps(concatenated_array.tolist()) # Convert the concatenated audio array to a JSON string
         # yield json_string # Yield the JSON string to the calling function (to be used for streaming the audio)
+
+        concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
         transformed_data = concatenated_array.tobytes() # Convert the concatenated audio array to binary data
 
         yield transformed_data
