@@ -126,7 +126,8 @@ def generate_audio_arrays(sentences, request):
         # yield json_string # Yield the JSON string to the calling function (to be used for streaming the audio)
 
         concatenated_array = np.concatenate([audio_array, silence_copied]) # Concatenate the audio array with the silence buffer
-        transformed_data = concatenated_array.tobytes() # Convert the concatenated audio array to binary data
+        float32_array = concatenated_array.astype(np.float32) # Convert to float32 before sending so it uses less network + is less burden on the client
+        transformed_data = float32_array.tobytes() # Convert the concatenated audio array to binary data
 
         yield transformed_data
         end_time = time.time()
